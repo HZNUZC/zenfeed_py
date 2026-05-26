@@ -1,0 +1,12 @@
+# rust
+/target
+*.so
+
+# notes
+notes/
+
+# python
+__pycache__
+
+# env
+.env

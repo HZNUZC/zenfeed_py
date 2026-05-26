@@ -1,0 +1,11 @@
+[package]
+name = "zenfeed-py"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "zenfeed"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = "0.28.3"

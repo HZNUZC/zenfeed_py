@@ -1,0 +1,16 @@
+[project]
+name = "zenfeed-py"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "maturin>=1.13.3",
+]
+
+[build-system]
+requires = ["maturin>=1.13.3"]
+build-backend = "maturin"
+
+[tool.maturin]
+python-source = "python"
