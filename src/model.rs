@@ -45,9 +45,9 @@ impl Feed {
 impl Labels {
     
     #[new]
-    fn new() -> Labels { Labels { inner: Vec::new() } }
+    pub fn new() -> Labels { Labels { inner: Vec::new() } }
 
-    fn get(&self, key: &str) -> Option<String> {
+    pub fn get(&self, key: &str) -> Option<String> {
         
         let result = self.inner.binary_search_by(|item| item.0.as_str().cmp(key));
         
@@ -58,7 +58,7 @@ impl Labels {
 
     }
 
-    fn put(&mut self, key: &str, val: &str) {
+    pub fn put(&mut self, key: &str, val: &str) {
 
         // 先用二分找到位置，直接有序插入，避免反复使用排序算法，也避免破坏数据本来的顺序状态
         let result = self.inner.binary_search_by(|item| item.0.as_str().cmp(key));

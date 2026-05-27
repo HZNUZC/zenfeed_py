@@ -10,7 +10,7 @@ use inverted_index::InvertedIndex;
 use primary_index::PrimaryIndex;
 use vector_index::VectorIndex;
 use counter::Counter;
-use crate::model::{Feed,};
+use crate::model::{Feed, Labels};
 
 enum BlockStatus {
     Hot,
@@ -115,6 +115,86 @@ impl Block {
         if vector.len() != 0 {
             self.vector_index.write(feed_id, vector);
         }
+
+    }
+
+    fn query(&self, f: Option<(&str, Option<&[&str]>)>, vector: Option<Vec<f32>>, limit: usize, mode: bool) -> Option<Vec<(Option<i32>, u64)>> {
+        
+        let mut result: Vec<(Option<i32>, u64)> = Vec::new();
+
+        if f == None && vector == None {
+            return None;
+        }
+
+        let mut v_res = Vec::new();
+        if let Some(v) = vector {
+            if let Some(v_r) = self.vector_index.search(v, None) {
+                v_res = v_r;
+            }
+        }
+
+        let mut f_res: Vec<u64> = Vec::new();
+        if let Some(filt) = f {
+            match self.inverted_index.get(filt.0) {
+                Some(ff) => { 
+                    if let Some(r) = filt.1 {
+                        f_res = ff.filter_by_equal(r, mode);
+                    } else {
+                        f_res = ff.filter_by_equal(&[], false);
+                    }
+                },
+                None => {},
+            }
+        }
+
+        if v_res.len() == 0 && f_res.len() == 0 {
+            return None;
+        }
+
+        let v_set: HashSet<u64> = v_res.iter().cloned().map(|val| val.0).collect();
+        let f_set: HashSet<u64> = f_res.iter().copied().collect();
+        let res_set: HashSet<u64>;
+
+        if v_res.len() != 0 && f_res.len() != 0 {
+            res_set = v_set.intersection(&f_set).copied().collect();
+            for i in v_res {
+                if res_set.contains(&i.0) {
+                    result.push((Some(i.1), i.0));
+                }
+            }
+        } else {
+            for i in v_res {
+                result.push((Some(i.1), i.0));
+            }
+            for i in f_res {
+                    result.push((None, i));
+            }
+        }
+
+        result.truncate(limit);
+        Some(result)
+
+    }
+
+    fn read(&self, ids: &[u64]) -> Vec<Labels> {
+
+        let lines = self.primary_index.read_slice(ids);
+        
+        let mut labels: Vec<Labels> = Vec::new();
+        for line in lines {
+            let mut label = Labels::new();
+            self.chunks.iter().for_each(|c| {
+                let s = c.1.read(line);
+                // 只读取有效标签值
+                if !s.is_empty() {
+                    label.inner.push((c.0.clone(), s));
+                }
+            });
+            label.inner.sort();
+            labels.push(label);
+        }
+
+        labels
 
     }
 

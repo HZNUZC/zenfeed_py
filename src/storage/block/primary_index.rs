@@ -16,4 +16,18 @@ impl PrimaryIndex {
         self.p_index.get(&feed_id).copied()
     }
 
+    pub fn read_slice(&self, feed_ids: &[u64]) -> Vec<usize> {
+        
+        let mut res = Vec::new();
+
+        for &id in feed_ids {
+            if let Some(i) = self.read(id) {
+                res.push(i);
+            } 
+        }
+
+        res
+
+    }
+
 }
