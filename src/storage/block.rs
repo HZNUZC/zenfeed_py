@@ -2,9 +2,13 @@ mod chunk;
 mod inverted_index;
 mod primary_index;
 mod vector_index;
-mod counter;
+pub mod counter;
 
-use std::collections::{HashMap, HashSet, hash_map::Entry};
+use std::{collections::{HashMap, HashSet, hash_map::Entry}, io::{BufReader, Write}, path::PathBuf};
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::io::BufWriter;
+use serde_json;
 use chunk::Chunk;
 use inverted_index::InvertedIndex;
 use primary_index::PrimaryIndex;
@@ -12,12 +16,8 @@ use vector_index::VectorIndex;
 use counter::Counter;
 use crate::model::{Feed, Labels};
 
-enum BlockStatus {
-    Hot,
-    Cold,
-}
-
-struct Block {
+#[derive(Serialize, Deserialize)]
+pub struct Block {
 
     // 计数器，用于分配行号
     counter: Counter,
@@ -28,32 +28,53 @@ struct Block {
     inverted_index: HashMap<String, inverted_index::InvertedIndex>,
     vector_index: vector_index::VectorIndex,
 
-    // 时间范围
-    time_span: (i64, i64),
-
-    // 活跃状态
-    status: BlockStatus,
-
 }
 
 impl Block {
     
-    fn new() -> Block { Block { counter: Counter::new(), chunks: HashMap::new(), primary_index: PrimaryIndex::new(), inverted_index: HashMap::new(), vector_index: VectorIndex::new(), time_span: (0, 0), status: BlockStatus::Hot } }
+    pub fn new() -> Block { Block { counter: Counter::new(), chunks: HashMap::new(), primary_index: PrimaryIndex::new(), inverted_index: HashMap::new(), vector_index: VectorIndex::new() } }
 
-    fn append(&mut self, feed: Feed, vector: Vec<f32>) {
+    pub fn load(path: &PathBuf) -> Result<Block, Box<dyn std::error::Error>> {
+
+        let file = fs::File::open(&path)?;
+
+        let reader = BufReader::new(file);
+
+        let block = serde_json::from_reader(reader)?;
+
+        Ok(block)
+
+    }
+
+    pub fn save(&self, path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+
+        fs::create_dir_all(path.parent().unwrap())?;
+
+        let file = fs::File::create(&path)?;
+ 
+        let writer = BufWriter::new(file);
+
+        serde_json::to_writer_pretty(writer, &self)?;
+
+        Ok(())
+
+    }
+
+    pub fn append(&mut self, feed: Feed, vector: Option<Vec<f32>>) {
 
         // step 1: 先拿到行号，拆分feed，并构造一个用于后续补新chunk的vec
-        let line = self.counter.get_line();
+        let line = self.counter.assgin();
         let feed_id = feed.id;
-        let feed_labels = feed.labels;
         let feed_time = feed.time;
+        let mut feed_labels = feed.labels;
+        feed_labels.put("feed_time", &feed_time.to_string());
         
         let mut vals = Vec::new();
         loop {
             if line == 0 {
                 break;
             }
-            if vals.len() >= line - 1 {
+            if vals.len() >= line {
                 break;
             }
             vals.push("".to_string());
@@ -112,13 +133,13 @@ impl Block {
         }
 
         // step 4: 有向量存向量
-        if vector.len() != 0 {
-            self.vector_index.write(feed_id, vector);
+        if let Some(v) = vector {
+            self.vector_index.write(feed_id, v);
         }
 
     }
 
-    fn query(&self, f: Option<(&str, Option<&[&str]>)>, vector: Option<Vec<f32>>, limit: usize, mode: bool) -> Option<Vec<(Option<i32>, u64)>> {
+    pub fn query(&self, f: Option<(&str, Option<&[&str]>)>, vector: Option<Vec<f32>>, limit: Option<usize>, mode: bool) -> Option<Vec<(Option<i32>, u64)>> {
         
         let mut result: Vec<(Option<i32>, u64)> = Vec::new();
 
@@ -136,7 +157,7 @@ impl Block {
         let mut f_res: Vec<u64> = Vec::new();
         if let Some(filt) = f {
             match self.inverted_index.get(filt.0) {
-                Some(ff) => { 
+                Some(ff) => {
                     if let Some(r) = filt.1 {
                         f_res = ff.filter_by_equal(r, mode);
                     } else {
@@ -171,12 +192,14 @@ impl Block {
             }
         }
 
-        result.truncate(limit);
+        if let Some(l) = limit {
+            result.truncate(l);
+        }
         Some(result)
 
     }
 
-    fn read(&self, ids: &[u64]) -> Vec<Labels> {
+    pub fn read(&self, ids: &[u64]) -> Vec<Labels> {
 
         let lines = self.primary_index.read_slice(ids);
         
@@ -186,7 +209,7 @@ impl Block {
             self.chunks.iter().for_each(|c| {
                 let s = c.1.read(line);
                 // 只读取有效标签值
-                if !s.is_empty() {
+                if c.0 != "feed_time" && !s.is_empty() {
                     label.inner.push((c.0.clone(), s));
                 }
             });
@@ -196,6 +219,12 @@ impl Block {
 
         labels
 
+    }
+
+    pub fn read_feed_time(&self, id: u64) -> Option<i64> {
+        let line = self.primary_index.read(id)?;
+        let chunk = self.chunks.get("feed_time")?;
+        chunk.read(line).parse::<i64>().ok()
     }
 
 }

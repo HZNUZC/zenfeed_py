@@ -1,5 +1,7 @@
-use std::{cmp::Reverse, vec};
+use std::{cmp::Reverse};
+use serde::{Serialize, Deserialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct VectorIndex {
     v_index: Vec<(u64, Vec<f32>)>
 }

@@ -1,6 +1,8 @@
 use std::collections::{HashMap, HashSet, hash_map::Entry};
+use serde::{Deserialize, Serialize};
 
 // SingleInvertedIndex
+#[derive(Serialize, Deserialize)]
 pub struct InvertedIndex {
     i_index: HashMap<String, Vec<u64>>
 }

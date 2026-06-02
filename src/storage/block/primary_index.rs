@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize)]
 pub struct PrimaryIndex {
     p_index: HashMap<u64, usize>
 }

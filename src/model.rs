@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use std::collections::HashMap;
 
 #[pyclass]
+#[derive(Clone)]
 pub struct Feed {
     #[pyo3(get)]
     pub id: u64,
@@ -12,6 +13,7 @@ pub struct Feed {
     pub time: i64,
 }
 
+#[derive(Clone)]
 #[pyclass]
 pub struct Labels {
     pub inner: Vec<(String, String)>,
@@ -21,8 +23,8 @@ pub struct Labels {
 impl Feed {
     
     #[new]
-    fn new(time: i64) -> Feed { 
-        Feed { id: 0, labels: Labels::new(), time }
+    fn new(time: i64) -> Feed {
+        Feed { id: 0, labels: Labels::new(), time: time }
     }
 
     #[staticmethod]
@@ -37,6 +39,14 @@ impl Feed {
     fn set_labels(&mut self, source: HashMap<String, String>) {
         self.labels.inner = source.into_iter().collect();
         self.labels.inner.sort(); 
+    }
+
+}
+
+impl Feed {
+    
+    pub fn fs_new(id: u64, labels: Labels, time: i64) -> Feed {
+        Feed { id: id, labels: labels, time: time }
     }
 
 }

@@ -1,3 +1,6 @@
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
 pub struct Counter {
     count: usize,
 }
@@ -8,7 +11,7 @@ impl Counter {
     pub fn new() -> Counter { Counter { count: 0 } }
 
     // 自动递增，并且返回一个行号
-    pub fn get_line(&mut self) -> usize {
+    pub fn assgin(&mut self) -> usize {
         self.increment();
         self.count - 1
     }
