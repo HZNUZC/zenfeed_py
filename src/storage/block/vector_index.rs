@@ -14,6 +14,11 @@ impl VectorIndex {
         
         // 预归一化处理
         let n_vec = to_one(vector);
+
+        if let Some(item) = self.v_index.iter_mut().find(|item| item.0 == feed_id) {
+            item.1 = n_vec;
+            return;
+        }
         
         self.v_index.push((feed_id, n_vec));
 

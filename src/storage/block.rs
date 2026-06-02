@@ -139,6 +139,15 @@ impl Block {
 
     }
 
+    pub fn vector_insert(&mut self, feed_id: u64, vector: Vec<f32>) -> bool {
+        if self.primary_index.read(feed_id).is_none() {
+            return false;
+        }
+
+        self.vector_index.write(feed_id, vector);
+        true
+    }
+
     pub fn query(&self, f: Option<(&str, Option<&[&str]>)>, vector: Option<Vec<f32>>, limit: Option<usize>, mode: bool) -> Option<Vec<(Option<i32>, u64)>> {
         
         let mut result: Vec<(Option<i32>, u64)> = Vec::new();

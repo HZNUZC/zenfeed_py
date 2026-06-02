@@ -1,7 +1,7 @@
 mod block;
 mod manifest;
 
-use std::{collections::BTreeMap, path::PathBuf};
+use std::{cmp::Reverse, collections::BTreeMap, path::PathBuf};
 use pyo3::types::{PyAnyMethods, PyList, PyListMethods};
 use pyo3::{Bound, PyRef, PyResult, pyclass, pymethods};
 use block::Block;
@@ -132,7 +132,36 @@ impl FeedStorage {
 
     }
 
-    fn vector_insert(&mut self) {
+    fn vector_insert(&mut self, id: u64, vector: Vec<f32>) -> bool {
+        let Some(key) = self.manifest.query_id_belonging(id) else {
+            return false;
+        };
+        let Some(path) = self.manifest.val_get(key) else {
+            return false;
+        };
+
+        if self.hot_block_key != Some(key) || self.hot_block.is_none() {
+            if let (Some(h), Some(h_key)) = (self.hot_block.as_ref(), self.hot_block_key) {
+                if let Some(h_path) = self.manifest.val_get(h_key) {
+                    if h.save(&h_path).is_err() {
+                        return false;
+                    }
+                }
+            }
+
+            let Ok(block) = Block::load(&path) else {
+                return false;
+            };
+            self.hot_block = Some(block);
+            self.hot_block_key = Some(key);
+        }
+
+        let ok = self.hot_block.as_mut().unwrap().vector_insert(id, vector);
+        if !ok {
+            return false;
+        }
+
+        self.hot_block.as_ref().unwrap().save(&path).is_ok()
 
     }
 
@@ -191,7 +220,42 @@ impl FeedStorage {
 
     }
 
-    fn vector_query(&self, vector: Vec<f32>, s2e: (Option<i64>, Option<i64>), limit: Option<usize>){
+    fn vector_query(&self, vector: Vec<f32>, s2e: (Option<i64>, Option<i64>), limit: Option<usize>) -> Vec<u64> {
+        let mut to_be_queried = self.manifest.time_filter(s2e);
+        let mut q_result: Vec<(i32, u64)> = Vec::new();
+
+        if let Some(h_key) = self.hot_block_key {
+            if to_be_queried.contains(&h_key) {
+                if let Some(h) = self.hot_block.as_ref() {
+                    if let Some(r) = h.query(None, Some(vector.clone()), limit, false) {
+                        q_result.extend(r.into_iter().filter_map(|res| res.0.map(|score| (score, res.1))));
+                    }
+                }
+            }
+
+            to_be_queried.remove(&h_key);
+        }
+
+        for k in to_be_queried {
+            let Some(path) = self.manifest.val_get(k) else {
+                continue;
+            };
+            let Ok(block) = Block::load(&path) else {
+                continue;
+            };
+
+            if let Some(r) = block.query(None, Some(vector.clone()), limit, false) {
+                q_result.extend(r.into_iter().filter_map(|res| res.0.map(|score| (score, res.1))));
+            }
+        }
+
+        q_result.sort_unstable_by_key(|res| Reverse(res.0));
+
+        if let Some(l) = limit {
+            q_result.truncate(l);
+        }
+
+        q_result.into_iter().map(|res| res.1).collect()
 
     }
 
