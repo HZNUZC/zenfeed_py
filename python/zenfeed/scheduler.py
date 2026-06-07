@@ -5,15 +5,17 @@ from .zenfeed import FeedStorage, Feed
 from .config import Periodic
 from .scraper import Scraper
 from .rewrite import RewritePipe
+from .notifier import Notifier
 
 class Scheduler:
     
     # 对象初始化时注入依赖
-    def __init__(self, rules: list[Periodic], fs: FeedStorage, scraper: Scraper, rewrite_pipe: RewritePipe):
+    def __init__(self, rules: list[Periodic], fs: FeedStorage, scraper: Scraper, rewrite_pipe: RewritePipe, notifier: Notifier):
         self.rules = rules
         self.fs = fs
         self.sp = scraper
         self.rp = rewrite_pipe
+        self.nf = notifier
 
     async def _run_one_rule(self, rule: Periodic):
         
@@ -36,7 +38,8 @@ class Scheduler:
                 v_ids = self.fs.vector_query(vec_arg.vector, vec_arg.s2e, vec_arg.limit)
 
             feeds = self.fs.get_feeds(list(set(v_ids) | set(f_ids)))
-            self.send_notifier(feeds)
+            if feeds is not None:
+                await self.send_notifier(feeds, rule.receiver)
     
     async def _run_scrape_loop(self):
         while True:
@@ -54,5 +57,5 @@ class Scheduler:
         tasks.append(asyncio.create_task(self._run_scrape_loop()))
         await asyncio.gather(*tasks)
 
-    def send_notifier(self, feed: list[Feed] | None):
-        pass
+    async def send_notifier(self, feeds: list[Feed], receiver: str):
+        await self.nf.send(feeds, receiver)

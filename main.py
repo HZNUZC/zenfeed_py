@@ -5,6 +5,7 @@ from zenfeed.scraper import Scraper
 from zenfeed.rewrite import RewritePipe
 from zenfeed.llm import LLM
 from zenfeed.scheduler import Scheduler
+from zenfeed.notifier import Notifier
 
 CONFIG_FILE_PATH = ".zenfeed/config.json"
 
@@ -23,7 +24,9 @@ scraper = Scraper(config.scraper_config)
 
 rp = RewritePipe(config.rewrite_rules, name2llm)
 
-scheduler = Scheduler(config.scheduler_rules, fs, scraper, rp)
+nf = Notifier(config.receiver_config, config.channels_config)
+
+scheduler = Scheduler(config.scheduler_rules, fs, scraper, rp, nf)
 
 # 启动系统调度流程
 asyncio.run(scheduler.start())

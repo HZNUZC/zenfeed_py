@@ -19,6 +19,39 @@ class RSS(BaseModel):
     name: str
     url: str
 
+class ContentTemplate(BaseModel):
+    item_template: str
+    separator: str
+
+class EmailContent(BaseModel):
+    # content的模版类
+    subject: str
+    content: ContentTemplate        
+
+class EmailChannel(BaseModel):
+    name: str
+    url: str
+    port: int
+    user: str
+    passwd: str
+    mail_meta: list[str]        # 规定列表的第一个地址是发件人地址
+    mail_content_t: EmailContent  # 依旧是采用配置模版的形式
+
+class WebhookChannel(BaseModel):
+    name: str
+    url: str
+    http_method: str = "POST"
+    body_template: ContentTemplate
+
+class ChannelsConfig(BaseModel):
+    smtp: list[EmailChannel]
+    webhook: list[WebhookChannel]
+
+class ReceiverConfig(BaseModel):
+    name: str
+    channel: str                # 定义这个receiver要持有哪一个名字对应的channel实例
+    slice_size: int             # 配置每次发邮件的最大feed数量
+
 class FilterQuery(BaseModel):
     filter: tuple[str, list[str] | None] | None
     s2e: tuple[int | None, int | None]
@@ -63,7 +96,7 @@ class LLM(BaseModel):
     name: str
     model_id: str
     type: LLMType
-    max_concurrency: int 
+    max_concurrency: int
     provider: LLMProvider
 
 class Config(BaseModel):
@@ -71,6 +104,8 @@ class Config(BaseModel):
     llm_config: list[LLM]
     rewrite_rules: list[RewriteRule]
     scheduler_rules: list[Periodic]
+    channels_config: ChannelsConfig
+    receiver_config: list[ReceiverConfig]
     
     def find_llm(self, name: str) -> LLM | None :
         for llm in self.llm_config:
