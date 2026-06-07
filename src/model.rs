@@ -32,13 +32,12 @@ impl Feed {
         Feed { id: 0, labels: Labels::from_map(labels), time }
     }
 
-    fn get_labels(&self) -> Option<HashMap<String, String>> {
-        self.labels.map()
+    fn get_labels(&self) -> Labels {
+        self.labels.clone()
     }
 
-    fn set_labels(&mut self, source: HashMap<String, String>) {
-        self.labels.inner = source.into_iter().collect();
-        self.labels.inner.sort(); 
+    fn set_labels(&mut self, source: Labels) {
+        self.labels = source;
     }
 
 }

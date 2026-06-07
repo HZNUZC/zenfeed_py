@@ -7,9 +7,12 @@ notes/
 
 # python
 __pycache__
+.venv/
 
 # env
 .env
 
+# misc
 .DS_Store
 .zenfeed/
+.idea/
