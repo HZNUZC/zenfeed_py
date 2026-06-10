@@ -38,7 +38,6 @@ class EmailChannel(Channel):
         
         msg = EmailMessage()
         # 程序缺乏这个数组的长度校验，按照职责划分，应该放到config.py
-        # TODO: 数组长度校验
         msg["From"] = self.mail_meta[0]
         msg["To"] = ", ".join(self.mail_meta[1:])
         msg["Subject"] = self.mail_content_t.subject
@@ -46,7 +45,7 @@ class EmailChannel(Channel):
         msg.set_content(self._build_content(self.mail_content_t.content, feed_slice))
 
         # 发送请求
-        await aiosmtplib.send(msg, hostname=self.url, username=self.user, password=self.passwd, port=self.port)
+        await aiosmtplib.send(msg, hostname=self.url, username=self.user, password=self.passwd, port=self.port, start_tls=True)
 
 class WebhookChannel(Channel):
     
@@ -88,7 +87,6 @@ class Receiver:
     def __init__(self, config: ReceiverConfig, channels: Channels) -> None:
         self.name = config.name
         # 事实上，get方法的确可能返回None，这不是我们期望的，我们应该在config里校验这一点
-        # TODO: config里需要添加配置逻辑的校验，因为这里根本不合适返回None
         self.channel = channels.get(config.channel)
         self.slice_size = config.slice_size
 

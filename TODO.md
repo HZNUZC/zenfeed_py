@@ -1,5 +1,11 @@
 # TODO
 
+## Misc
+
+- [ ] **配置模型与校验收口**：补齐 Watch 规则的数据结构，并把邮件收件人列表、Receiver 绑定 Channel 等配置一致性检查前移到加载阶段
+- [ ] **Rewrite 路由与错误处理**：整理规则类型到处理函数的映射方式；当配置引用了不存在的 LLM 时，改为明确失败或记录日志
+- [ ] **LLM 调用消息规范**：统一模型调用的消息构造入口，补充系统提示词，避免每条规则只裸传用户 prompt
+
 ## Scraper 优化
 
 - [x] **按 link 去重**：同一 RSS 源内和跨源都去重，避免重复抓取同一篇文章
@@ -11,7 +17,7 @@
 - [ ] **调度器 (Scheduler)**
   - [x] Periodic 规则：定时执行查询（如每天 8:00），结果打包发送
   - [ ] Watch 规则：持续监控，当查询结果满足条件时触发通知
-- [ ] **通知系统 (Notifier)**
+- [x] **通知系统 (Notifier)**
   - Route 路由：按标签匹配分发到不同 Receiver
   - Receiver：聚合策略 + 目标 Channel
   - Channel 实现：Email（SMTP）、Webhook（HTTP POST）
@@ -25,9 +31,9 @@
 
 ## LLM 扩展
 
-- [ ] **Embedding**：文本向量化，为语义搜索提供支持
-- [ ] **TTS**：文本转语音（transform.to_audio）
-- [ ] **Embedding 缓存**：通过 KVStorage 避免重复计算
+- [x] **Embedding**：文本向量化，为语义搜索提供支持
+- [x] **TTS**：文本转语音（transform.to_audio）
+- [x] **Embedding 缓存**：通过 KVStorage 避免重复计算
 
 ## 基础设施
 

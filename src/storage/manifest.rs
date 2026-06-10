@@ -120,6 +120,7 @@ impl Manifest {
     }
 
     pub fn id_key_insert(&mut self, id: u64, key: i64) {
+        self.dirty = true;
         self.id2key.insert(id, key);
     }
 

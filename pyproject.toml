@@ -8,6 +8,7 @@ dependencies = [
     "aiohttp>=3.14.0",
     "aiosmtplib>=5.1.1",
     "anthropic>=0.105.2",
+    "click>=8.4.1",
     "croniter>=6.2.2",
     "feedparser>=6.0.12",
     "maturin>=1.13.3",
@@ -15,9 +16,21 @@ dependencies = [
     "pydantic>=2.13.4",
 ]
 
+[project.scripts]
+zenfeed = "zenfeed.cli:cli"
+
 [build-system]
 requires = ["maturin>=1.13.3"]
 build-backend = "maturin"
 
 [tool.maturin]
 python-source = "python"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["python"]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.0.3",
+]

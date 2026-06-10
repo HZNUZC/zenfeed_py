@@ -9,12 +9,14 @@ use manifest::Manifest;
 
 use crate::model::Feed;
 
-const WINDOW: i64 = 90000; 
+const DEFAULT_WINDOW: i64 = 90000;
 
 #[pyclass]
 pub struct FeedStorage {
 
     manifest: Manifest,
+    manifest_path: PathBuf, 
+    window: i64,             
     hot_block: Option<Block>,
     hot_block_key: Option<i64>,
 
@@ -24,21 +26,29 @@ pub struct FeedStorage {
 impl FeedStorage {
     
     #[new]
-    fn new() -> FeedStorage { 
+    #[pyo3(signature = (manifest_path=None, window=None))]   
+    fn new(manifest_path: Option<String>, window: Option<i64>) -> FeedStorage { 
+        let path = manifest_path.map(PathBuf::from).unwrap_or(PathBuf::from(".zenfeed/manifest.json"));
         FeedStorage { 
             manifest: Manifest::new(),
+            manifest_path: path,
+            window: window.unwrap_or(DEFAULT_WINDOW),
             hot_block: None, 
             hot_block_key: None 
         } 
     }
 
     #[staticmethod]
-    fn open() -> FeedStorage {
+    #[pyo3(signature = (manifest_path=None, window=None))]   
+    fn open(manifest_path: Option<String>, window: Option<i64>) -> FeedStorage {
+        let path = manifest_path.map(PathBuf::from).unwrap_or(PathBuf::from(".zenfeed/manifest.json"));
         FeedStorage { 
-            manifest: match Manifest::load(&PathBuf::from(".zenfeed/manifest.json")) {
+            manifest: match Manifest::load(&path) {
                 Ok(m) => {m},
                 _ => {Manifest::new()},
-            }, 
+            },
+            manifest_path: path,
+            window: window.unwrap_or(DEFAULT_WINDOW),
             hot_block: None, 
             hot_block_key: None 
         }
@@ -68,11 +78,13 @@ impl FeedStorage {
             t0 = self.manifest.first_key().unwrap();
         }
 
-        let feed_chunks = rust_feeds.chunk_by(|a, b| feed_belong_cal(t0, a.time) == feed_belong_cal(t0, b.time) );
+         
+        let w = self.window;
+        let feed_chunks = rust_feeds.chunk_by(|a, b| feed_belong_cal(t0, a.time, w) == feed_belong_cal(t0, b.time, w) );
 
         for feeds in feed_chunks {
 
-            let key = feed_belong_cal(t0, feeds[0].time);
+            let key = feed_belong_cal(t0, feeds[0].time, w);
             let (path, is_new) = self.manifest.route(key);
 
             // 预处理：建立从id和key的对应关系
@@ -123,7 +135,7 @@ impl FeedStorage {
             }
 
             if self.manifest.is_dirty() {
-                self.manifest.save(&PathBuf::from(".zenfeed/manifest.json"));
+                self.manifest.save(&self.manifest_path);   
             }
             
         }
@@ -301,6 +313,6 @@ impl FeedStorage {
 
 }
 
-fn feed_belong_cal(t0: i64, t: i64) -> i64 {
-    t0 + ((t - t0) / WINDOW) * WINDOW
+fn feed_belong_cal(t0: i64, t: i64, window: i64) -> i64 {
+    t0 + ((t - t0) / window) * window
 }

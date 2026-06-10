@@ -5,22 +5,45 @@ import asyncio
 import aiohttp
 from zenfeed import config
 from .zenfeed import Feed
+from .kvstorage import KVStorage
 
 class Scraper:
 
-    def __init__(self, config: config.Scraper):
+    def __init__(self, config: config.Scraper, kv: KVStorage | None = None):  # audit:etag
         self.rss_list = config.rss_list
         self.interval = config.interval
+        self._kv = kv
 
-    @staticmethod
-    async def fetch_all(urls):
+    async def fetch_all(self, urls):  # audit:etag 非静态方法以访问_kv
         async with aiohttp.ClientSession() as session:
-            tasks = [Scraper.fetch_one(session, url) for url in urls]
-            return await asyncio.gather(*tasks)
+            tasks = [self._fetch_one(session, url) for url in urls]
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            bodies = []
+            for r in results:
+                if isinstance(r, Exception):
+                    bodies.append("")
+                else:
+                    bodies.append(r)
+            return bodies
 
-    @staticmethod
-    async def fetch_one(session, url):
-        async with session.get(url) as resp:
+    async def _fetch_one(self, session, url):  # audit:etag
+        headers = {}
+        if self._kv:
+            etag = self._kv.get(f"etag:{url}")
+            lm = self._kv.get(f"lm:{url}")
+            if etag:
+                headers["If-None-Match"] = etag
+            elif lm:
+                headers["If-Modified-Since"] = lm
+
+        async with session.get(url, headers=headers) as resp:
+            if resp.status == 304:
+                return ""
+            if self._kv:
+                if etag_h := resp.headers.get("ETag"):
+                    self._kv.set(f"etag:{url}", etag_h)
+                if lm_h := resp.headers.get("Last-Modified"):
+                    self._kv.set(f"lm:{url}", lm_h)
             return await resp.text()
     
     @staticmethod
@@ -40,9 +63,11 @@ class Scraper:
         primary_feeds: list[Feed] = []
         
         urls = [rss.url for rss in self.rss_list]
-        xmls = await Scraper.fetch_all(urls)
+        xmls = await self.fetch_all(urls)
 
         for xml in xmls:
+            if not xml:
+                continue  # audit:etag 304时跳过解析
             parse_res = feedparser.parse(xml)
 
             for entry in parse_res.entries:

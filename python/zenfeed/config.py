@@ -1,19 +1,27 @@
 import json
+import logging
 import os
 import re
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 _ENV_VAR_PATTERN = re.compile(r"\$\{([A-Za-z_][A-Za-z0-9_]*)\}")
+
+logger = logging.getLogger(__name__)
 
 class LLMType(Enum):
     Embed = "embed"
     General = "general"
+    Tts = "tts"
 
 class RewriteType(Enum):
     ToText = "transform.to_text"
+    Filter = "filter"           # audit:rewrite-types
+    Replace = "replace"         # audit:rewrite-types
+    Set = "set"                 # audit:rewrite-types
+    Crawl = "crawl"             # audit:rewrite-types
 
 class RSS(BaseModel):
     name: str
@@ -74,11 +82,11 @@ class Periodic(BaseModel):
     filt_query_arg: FilterQuery | None
     vec_query_arg: VectorQuery | None
 
-# TODO: 实现Watch的结构选型
 class Watch(BaseModel):
     name: str
+    interval: int = 60           # audit:watch-config 检查间隔(秒)
     receiver: str
-    query_arg: FilterQuery | None
+    filt_query_arg: FilterQuery | None
     vec_query_arg: VectorQuery | None
 
 class LLMProvider(BaseModel):
@@ -88,9 +96,13 @@ class LLMProvider(BaseModel):
 class RewriteRule(BaseModel):
     name: str
     type: RewriteType
-    llm: str
-    prompt_t: str
-    label: str
+    llm: str | None = None          # audit:rewrite-rule-opt 非transform规则不需要LLM
+    prompt_t: str | None = None     # audit:rewrite-rule-opt 模版字符串/正则pattern
+    label: str | None = None        # audit:rewrite-rule-opt 目标标签
+    system_prompt_t: str | None = None  # audit:llm-system 系统提示词语模版
+    replacement: str | None = None  # audit:rewrite-rule-opt replace规则的替换字符串
+    value: str | None = None        # audit:rewrite-rule-opt set规则的固定值
+    url_label: str | None = None    # audit:rewrite-rule-opt crawl规则指示哪个标签包含URL
 
 class LLM(BaseModel):
     name: str
@@ -99,19 +111,47 @@ class LLM(BaseModel):
     max_concurrency: int
     provider: LLMProvider
 
+class Storage(BaseModel):            # audit:storage-config
+    window: int = 90000
+    data_dir: str = ".zenfeed"
+
 class Config(BaseModel):
     scraper_config: Scraper
-    llm_config: list[LLM]
+    llms_config: list[LLM]
     rewrite_rules: list[RewriteRule]
-    scheduler_rules: list[Periodic]
+    scheduler_rules: list[Periodic] = []
+    watch_rules: list[Watch] = []   # audit:watch-config
     channels_config: ChannelsConfig
     receiver_config: list[ReceiverConfig]
-    
-    def find_llm(self, name: str) -> LLM | None :
-        for llm in self.llm_config:
-            if llm.name == name:
-                return llm
-        return None
+    storage_config: Storage = Storage()  # audit:storage-config
+
+    @model_validator(mode="after")    # audit:config-validate
+    def _validate_consistency(self) -> "Config":
+        llm_names = {llm.name for llm in self.llms_config}
+        channel_names = {c.name for c in self.channels_config.smtp} | {c.name for c in self.channels_config.webhook}
+        receiver_names = {r.name for r in self.receiver_config}
+
+        for rule in self.rewrite_rules:
+            if rule.llm is not None and rule.llm not in llm_names:
+                logger.warning("rewrite rule %r references unknown LLM %r", rule.name, rule.llm)
+
+        for r in self.receiver_config:
+            if r.channel not in channel_names:
+                logger.warning("receiver %r references unknown channel %r", r.name, r.channel)
+
+        for rule in self.scheduler_rules:
+            if rule.receiver not in receiver_names:
+                logger.warning("periodic rule %r references unknown receiver %r", rule.name, rule.receiver)
+
+        for rule in self.watch_rules:  # audit:watch-config
+            if rule.receiver not in receiver_names:
+                logger.warning("watch rule %r references unknown receiver %r", rule.name, rule.receiver)
+
+        for ch in self.channels_config.smtp:
+            if len(ch.mail_meta) < 1:
+                logger.warning("email channel %r has empty mail_meta", ch.name)
+
+        return self
 
 
 def _resolve_env_placeholders(value: Any) -> Any:
